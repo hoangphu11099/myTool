@@ -73,7 +73,6 @@ class DateSelector(tk.Frame):
         return self.get_date().strftime("%Y-%m-%d")
 
 # ==================== LICENSE SYSTEM ====================
-# ==================== LICENSE SYSTEM (ĐÃ FIX) ====================
 def get_hwid():
     try:
         info = (platform.node() + str(uuid.getnode()) + platform.processor() +
@@ -91,14 +90,9 @@ def verify_license_online(key):
 
         data = response.json()
 
-        # === DEBUG (bạn có thể comment 2 dòng này sau khi test xong) ===
-        # print("=== SERVER RESPONSE ===")
-        # print(data)
-
         if not data.get("valid"):
             return False, 0, data.get("message", "Key không hợp lệ")
 
-        # Ưu tiên cao nhất: remaining_days (giống file cũ của bạn)
         if "remaining_days" in data:
             days = int(data.get("remaining_days", 0))
             if days > 0:
@@ -107,12 +101,10 @@ def verify_license_online(key):
             elif days == 0:
                 return False, 0, "❌ License đã hết hạn"
 
-        # Hỗ trợ key vĩnh viễn
         if data.get("is_permanent") is True or data.get("license", {}).get("is_permanent") is True:
             save_license(key)
             return True, 99999, "Vĩnh viễn"
 
-        # Fallback: parse expiry (hỗ trợ cả nested "license" lẫn root)
         license_obj = data.get("license", data)
         expiry_str = license_obj.get("expiry", data.get("expiry", "")).strip()
 
@@ -130,12 +122,12 @@ def verify_license_online(key):
             except:
                 pass
 
-        # Nếu không có ngày hết hạn rõ ràng → vẫn coi là hợp lệ
         save_license(key)
         return True, 99999, "Hợp lệ (không giới hạn ngày)"
 
     except Exception as e:
         return False, -1, f"Lỗi kết nối server: {str(e)[:100]}"
+
 def load_license_info():
     if LICENSE_FILE.exists():
         try:
@@ -161,7 +153,7 @@ def update_title(valid, status_text):
     else:
         root.title("Tool Ghép Nhóm + Tính Sale + Lợi Nhuận Sale Game v2.0 - by Hoàng Phú - License không hợp lệ")
 
-# ==================== GIAO DIỆN NHẬP KEY ĐẸP (từ file cũ của bạn) ====================
+# ==================== GIAO DIỆN NHẬP KEY ĐẸP ====================
 def show_license_dialog():
     dialog = tk.Tk()
     dialog.title("🔑 KÍCH HOẠT LICENSE - Tool Ghép Nhóm v2.0")
@@ -213,6 +205,7 @@ def show_license_dialog():
     tk.Label(dialog, text="© 2026 - by Hoàng Phú\n1 key dùng chung nhiều tool - Lock theo 1 máy", 
              font=("Arial", 9), fg="#95a5a6", bg="#2c3e50").pack(side="bottom", pady=15)
     dialog.mainloop()
+
 # ==================== MONEY & HELPER ====================
 def format_money(amount):
     if amount == int(amount):
@@ -227,6 +220,30 @@ def parse_money(text):
         return float(cleaned)
     except:
         return 0.0
+
+# ==================== HELPER MỚI: LẤY INDEX THEO ID ====================
+def get_selected_debt_idx(tree):
+    """Lấy index trong debt_list từ selection - ĐÃ SỬA LỖI iid"""
+    selected = tree.selection()
+    if not selected:
+        return None
+    
+    iid = selected[0]                    # ← Đây là iid thật sự
+    
+    # Tìm theo id (dữ liệu mới)
+    for idx, debt in enumerate(debt_list):
+        if debt.get("id") == iid:
+            return idx
+    
+    # Fallback: dùng STT (cột đầu tiên) cho dữ liệu cũ chưa có id
+    try:
+        stt = int(tree.item(selected[0])['values'][0]) - 1
+        if 0 <= stt < len(debt_list):
+            return stt
+    except:
+        pass
+    
+    return None
 
 def get_days_debt(ngay_no_str):
     try:
@@ -367,6 +384,7 @@ def open_revenue_window():
     rev_win.grab_set()
     load_revenue_data()
 
+    # ==================== LỌC THEO NGÀY ====================
     filter_frame = tk.LabelFrame(rev_win, text="🔎 Lọc theo ngày", font=("Arial", 11, "bold"), bg="#f8f9fa", padx=15, pady=10)
     filter_frame.pack(fill="x", padx=15, pady=8)
 
@@ -385,6 +403,7 @@ def open_revenue_window():
     tk.Button(filter_frame, text="Hiển thị tất cả", command=lambda: refresh_revenue_tree(tree_r, lbl_total),
               bg="#95a5a6", fg="white", width=15).grid(row=0, column=5, padx=5)
 
+    # ==================== FORM NHẬP DOANH THU ====================
     form = tk.LabelFrame(rev_win, text=" Nhập Doanh Thu ", font=("Arial", 11, "bold"), bg="#f8f9fa", padx=15, pady=12)
     form.pack(fill="x", padx=15, pady=8)
 
@@ -407,6 +426,7 @@ def open_revenue_window():
     tk.Button(btn_f, text="🗑️ Xóa", command=lambda: xoa_doanhthu(tree_r, lbl_total), bg="#e74c3c", fg="white", width=12).pack(side="left", padx=5)
     tk.Button(btn_f, text="📤 Export Excel", command=export_doanhthu, bg="#6f42c1", fg="white", width=15).pack(side="left", padx=5)
 
+    # ==================== BẢNG DANH SÁCH DOANH THU ====================
     tree_frame = tk.LabelFrame(rev_win, text=" Danh sách doanh thu ", font=("Arial", 11, "bold"), bg="#f8f9fa", padx=10, pady=8)
     tree_frame.pack(fill="both", expand=True, padx=15, pady=5)
 
@@ -421,12 +441,12 @@ def open_revenue_window():
     tree_r.configure(yscrollcommand=vsb.set)
     tree_r.pack(side="left", fill="both", expand=True)
     vsb.pack(side="right", fill="y")
-
+    
+    # ==================== TỔNG DOANH THU ====================
     lbl_total = tk.Label(rev_win, text="💰 TỔNG DOANH THU: 0 VNĐ", font=("Arial", 14, "bold"), fg="#2e7d32", bg="#f8f9fa")
     lbl_total.pack(pady=15)
 
     refresh_revenue_tree(tree_r, lbl_total)
-
 def them_moi_doanhthu(e_ngay, e_tien, e_ghichu, tree, lbl):
     ngay = e_ngay.get_date_str()
     tien = parse_money(e_tien.get())
@@ -476,7 +496,7 @@ def export_doanhthu():
         df = pd.DataFrame(revenue_list)
         df.to_excel(filename, index=False)
         messagebox.showinfo("Thành công", f"Đã export:\n{filename}")
-
+# ==================== CÔNG NỢ - ĐÃ THÊM TÌM KIẾM ====================
 def load_debt_data():
     global debt_list
     if DEBT_FILE.exists():
@@ -488,6 +508,16 @@ def load_debt_data():
     else:
         debt_list = []
 
+    # Tự động thêm ID cho các khoản nợ cũ (chỉ chạy 1 lần)
+    updated = False
+    for debt in debt_list:
+        if not debt.get("id"):
+            debt["id"] = str(uuid.uuid4())[:8].upper()
+            updated = True
+    
+    if updated:
+        save_debt_data()
+        print("✅ Đã tự động thêm ID cho các khoản nợ cũ!")
 def save_debt_data():
     try:
         with open(DEBT_FILE, 'w', encoding='utf-8') as f:
@@ -495,14 +525,26 @@ def save_debt_data():
     except Exception as e:
         messagebox.showerror("Lỗi", f"Lỗi lưu công nợ: {str(e)}")
 
-def refresh_debt_tree(tree, total_label):
+def refresh_debt_tree(tree, total_label, search_term=""):
     for item in tree.get_children():
         tree.delete(item)
-    for i, debt in enumerate(debt_list, 1):
+    
+    filtered = debt_list
+    if search_term and search_term.strip():
+        term = search_term.strip().lower()
+        filtered = [
+            d for d in debt_list
+            if term in str(d.get("khach_hang", "")).lower()
+            or term in str(d.get("id", "")).lower()
+            or term in str(d.get("zalo", "")).lower()
+            or term in str(d.get("ghi_chu", "")).lower()
+        ]
+    
+    for i, debt in enumerate(filtered, 1):
         con_no = debt["so_tien_no"] - debt.get("da_thanh_toan", 0)
         days_debt = get_days_debt(debt.get("ngay_no", ""))
         tag = "overdue" if con_no > 0 and days_debt > 10 else "normal"
-        tree.insert("", "end", values=(
+        tree.insert("", "end", iid=debt.get("id"), values=(
             i, debt.get("khach_hang", ""), debt.get("zalo", ""),
             format_money(debt["so_tien_no"]),
             format_money(debt.get("da_thanh_toan", 0)),
@@ -511,7 +553,8 @@ def refresh_debt_tree(tree, total_label):
             f"{days_debt} ngày",
             debt.get("ghi_chu", "")[:30]
         ), tags=(tag,))
-    total = sum(d["so_tien_no"] - d.get("da_thanh_toan", 0) for d in debt_list)
+    
+    total = sum(d["so_tien_no"] - d.get("da_thanh_toan", 0) for d in filtered)
     total_label.config(text=f"💰 TỔNG CÔNG NỢ: {format_money(total)}")
     tree.tag_configure("overdue", foreground="#d32f2f", font=("Arial", 10, "bold"))
     tree.tag_configure("normal", foreground="black")
@@ -519,12 +562,14 @@ def refresh_debt_tree(tree, total_label):
 def open_debt_window():
     debt_win = tk.Toplevel(root)
     debt_win.title("📋 Quản Lý Công Nợ Khách Hàng")
-    debt_win.geometry("1150x680")
+    debt_win.geometry("1150x720")
     debt_win.configure(bg="#f8f9fa")
     debt_win.grab_set()
     load_debt_data()
 
-    form_frame = tk.LabelFrame(debt_win, text=" Nhập / Sửa Công Nợ ", font=("Arial", 11, "bold"), bg="#f8f9fa", padx=15, pady=12)
+    # ==================== FORM NHẬP / SỬA ====================
+    form_frame = tk.LabelFrame(debt_win, text=" Nhập / Sửa Công Nợ ", 
+                               font=("Arial", 11, "bold"), bg="#f8f9fa", padx=15, pady=12)
     form_frame.pack(fill="x", padx=15, pady=10)
 
     tk.Label(form_frame, text="Khách hàng (ID/Tên):", bg="#f8f9fa", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", pady=6)
@@ -547,15 +592,26 @@ def open_debt_window():
     e_ghichu = tk.Entry(form_frame, width=60, font=("Arial", 10))
     e_ghichu.grid(row=4, column=1, padx=10, pady=6)
 
-    btn_f = tk.Frame(form_frame, bg="#f8f9fa")
-    btn_f.grid(row=5, column=0, columnspan=2, pady=12)
-    tk.Button(btn_f, text="➕ Thêm Mới", command=lambda: them_moi_congno_debt(e_khach, e_zalo, e_tien, e_ngay, e_ghichu, tree_d, lbl_t), bg="#28a745", fg="white", font=("Arial", 10, "bold"), width=14).pack(side="left", padx=5)
-    tk.Button(btn_f, text="✏️ Sửa", command=lambda: sua_congno_debt(tree_d, e_khach, e_zalo, e_tien, e_ngay, e_ghichu, lbl_t), bg="#ffc107", fg="black", font=("Arial", 10, "bold"), width=12).pack(side="left", padx=5)
-    tk.Button(btn_f, text="🗑️ Xóa", command=lambda: xoa_congno_debt(tree_d, lbl_t), bg="#e74c3c", fg="white", font=("Arial", 10, "bold"), width=12).pack(side="left", padx=5)
-    tk.Button(btn_f, text="💰 Thanh Toán", command=lambda: thanh_toan_congno_debt(tree_d, lbl_t), bg="#17a2b8", fg="white", font=("Arial", 10, "bold"), width=15).pack(side="left", padx=5)
-    tk.Button(btn_f, text="📤 Export Excel", command=export_congno_debt, bg="#6f42c1", fg="white", font=("Arial", 10, "bold"), width=15).pack(side="left", padx=5)
+    # ==================== Ô TÌM KIẾM ====================
+    search_frame = tk.LabelFrame(debt_win, text="🔎 Tìm kiếm", 
+                                 font=("Arial", 10, "bold"), bg="#f8f9fa", padx=12, pady=6)
+    search_frame.pack(anchor="e", padx=20, pady=(5, 8))
 
-    tree_frame = tk.LabelFrame(debt_win, text=" Danh sách công nợ ", font=("Arial", 11, "bold"), bg="#f8f9fa", padx=10, pady=8)
+    tk.Label(search_frame, text="Từ khóa:", bg="#f8f9fa", font=("Arial", 10, "bold")).pack(side="left", padx=(5, 8))
+    search_var = tk.StringVar()
+    search_entry = tk.Entry(search_frame, textvariable=search_var, width=35, font=("Arial", 10))
+    search_entry.pack(side="left", padx=5)
+
+    def live_search(*args):
+        refresh_debt_tree(tree_d, lbl_t, search_var.get())
+    search_var.trace_add("write", live_search)   # ← Sửa DeprecationWarning
+
+    tk.Button(search_frame, text="Xóa lọc", command=lambda: search_var.set(""), 
+              bg="#95a5a6", fg="white", font=("Arial", 9, "bold"), width=9).pack(side="left", padx=5)
+
+    # ==================== BẢNG DANH SÁCH (CHỈ 1 LẦN) ====================
+    tree_frame = tk.LabelFrame(debt_win, text=" Danh sách công nợ ", 
+                               font=("Arial", 11, "bold"), bg="#f8f9fa", padx=10, pady=8)
     tree_frame.pack(fill="both", expand=True, padx=15, pady=5)
 
     columns = ("STT", "Khách hàng", "Zalo", "Nợ", "Đã trả", "Còn nợ", "Ngày", "Số ngày đã nợ", "Ghi chú")
@@ -572,10 +628,12 @@ def open_debt_window():
     vsb.pack(side="right", fill="y")
     hsb.pack(side="bottom", fill="x")
 
+    # Double-click để sửa
     def on_double_click(event):
         selected = tree_d.selection()
         if not selected: return
-        idx = int(tree_d.item(selected[0])['values'][0]) - 1
+        idx = get_selected_debt_idx(tree_d)
+        if idx is None: return
         debt = debt_list[idx]
         e_khach.delete(0, tk.END); e_khach.insert(0, debt.get("khach_hang", ""))
         e_zalo.delete(0, tk.END);   e_zalo.insert(0, debt.get("zalo", ""))
@@ -586,12 +644,38 @@ def open_debt_window():
 
     tree_d.bind("<Double-1>", on_double_click)
 
-    lbl_t = tk.Label(debt_win, text="💰 TỔNG CÔNG NỢ: 0 VNĐ", font=("Arial", 14, "bold"), fg="#d32f2f", bg="#f8f9fa")
-    lbl_t.pack(pady=18)
+    # ==================== TỔNG CÔNG NỢ ====================
+    lbl_t = tk.Label(debt_win, text="💰 TỔNG CÔNG NỢ: 0 VNĐ", 
+                     font=("Arial", 14, "bold"), fg="#d32f2f", bg="#f8f9fa")
+    lbl_t.pack(pady=15)
 
+    # ==================== NÚT THAO TÁC ====================
+    btn_f = tk.Frame(form_frame, bg="#f8f9fa")
+    btn_f.grid(row=5, column=0, columnspan=2, pady=12)
+
+    tk.Button(btn_f, text="➕ Thêm Mới", 
+              command=lambda: them_moi_congno_debt(e_khach, e_zalo, e_tien, e_ngay, e_ghichu, tree_d, lbl_t, search_var),
+              bg="#28a745", fg="white", font=("Arial", 10, "bold"), width=14).pack(side="left", padx=5)
+
+    tk.Button(btn_f, text="✏️ Sửa", 
+              command=lambda: sua_congno_debt(tree_d, e_khach, e_zalo, e_tien, e_ngay, e_ghichu, lbl_t, search_var),
+              bg="#ffc107", fg="black", font=("Arial", 10, "bold"), width=12).pack(side="left", padx=5)
+
+    tk.Button(btn_f, text="🗑️ Xóa", 
+              command=lambda: xoa_congno_debt(tree_d, lbl_t, search_var),
+              bg="#e74c3c", fg="white", font=("Arial", 10, "bold"), width=12).pack(side="left", padx=5)
+
+    tk.Button(btn_f, text="💰 Thanh Toán", 
+              command=lambda: thanh_toan_congno_debt(tree_d, lbl_t, search_var),
+              bg="#17a2b8", fg="white", font=("Arial", 10, "bold"), width=15).pack(side="left", padx=5)
+
+    tk.Button(btn_f, text="📤 Export Excel", command=export_congno_debt,
+              bg="#6f42c1", fg="white", font=("Arial", 10, "bold"), width=15).pack(side="left", padx=5)
+
+    # Load dữ liệu ban đầu
     refresh_debt_tree(tree_d, lbl_t)
 
-def them_moi_congno_debt(e_khach, e_zalo, e_tien, e_ngay, e_ghichu, tree, lbl):
+def them_moi_congno_debt(e_khach, e_zalo, e_tien, e_ngay, e_ghichu, tree, lbl, search_var=None):
     khach = e_khach.get().strip()
     zalo = e_zalo.get().strip()
     tien = parse_money(e_tien.get())
@@ -605,17 +689,17 @@ def them_moi_congno_debt(e_khach, e_zalo, e_tien, e_ngay, e_ghichu, tree, lbl):
             "ghi_chu": ghichu, "ngay_tao": datetime.now().strftime("%Y-%m-%d %H:%M")}
     debt_list.append(debt)
     save_debt_data()
-    refresh_debt_tree(tree, lbl)
+    term = search_var.get() if search_var else ""
+    refresh_debt_tree(tree, lbl, term)
     e_tien.delete(0, tk.END)
     e_ghichu.delete(0, tk.END)
     messagebox.showinfo("Thành công", "Đã thêm khoản nợ mới!")
 
-def sua_congno_debt(tree, e_khach, e_zalo, e_tien, e_ngay, e_ghichu, lbl):
-    selected = tree.selection()
-    if not selected:
+def sua_congno_debt(tree, e_khach, e_zalo, e_tien, e_ngay, e_ghichu, lbl, search_var=None):
+    idx = get_selected_debt_idx(tree)
+    if idx is None:
         messagebox.showwarning("Chưa chọn", "Vui lòng double-click vào dòng cần sửa!")
         return
-    idx = int(tree.item(selected[0])['values'][0]) - 1
     if 0 <= idx < len(debt_list):
         tien = parse_money(e_tien.get())
         if tien <= 0:
@@ -629,29 +713,28 @@ def sua_congno_debt(tree, e_khach, e_zalo, e_tien, e_ngay, e_ghichu, lbl):
             "ghi_chu": e_ghichu.get().strip()
         })
         save_debt_data()
-        refresh_debt_tree(tree, lbl)
+        term = search_var.get() if search_var else ""
+        refresh_debt_tree(tree, lbl, term)
         messagebox.showinfo("Thành công", "Đã cập nhật!")
 
-def xoa_congno_debt(tree, lbl):
-    selected = tree.selection()
-    if not selected: return
+def xoa_congno_debt(tree, lbl, search_var=None):
+    idx = get_selected_debt_idx(tree)
+    if idx is None: return
     if messagebox.askyesno("Xác nhận", "Xóa khoản nợ này?"):
-        idx = int(tree.item(selected[0])['values'][0]) - 1
-        if 0 <= idx < len(debt_list):
-            del debt_list[idx]
-            save_debt_data()
-            refresh_debt_tree(tree, lbl)
+        del debt_list[idx]
+        save_debt_data()
+        term = search_var.get() if search_var else ""
+        refresh_debt_tree(tree, lbl, term)
 
-def thanh_toan_congno_debt(tree, lbl):
-    selected = tree.selection()
-    if not selected: return
+def thanh_toan_congno_debt(tree, lbl, search_var=None):
+    idx = get_selected_debt_idx(tree)
+    if idx is None: return
     amount = simpledialog.askfloat("Thanh toán", "Nhập số tiền thanh toán:", minvalue=0)
     if amount is None or amount <= 0: return
-    idx = int(tree.item(selected[0])['values'][0]) - 1
-    if 0 <= idx < len(debt_list):
-        debt_list[idx]["da_thanh_toan"] = min(debt_list[idx].get("da_thanh_toan", 0) + amount, debt_list[idx]["so_tien_no"])
-        save_debt_data()
-        refresh_debt_tree(tree, lbl)
+    debt_list[idx]["da_thanh_toan"] = min(debt_list[idx].get("da_thanh_toan", 0) + amount, debt_list[idx]["so_tien_no"])
+    save_debt_data()
+    term = search_var.get() if search_var else ""
+    refresh_debt_tree(tree, lbl, term)
 
 def export_congno_debt():
     if not debt_list:
@@ -664,7 +747,9 @@ def export_congno_debt():
         df.to_excel(filename, index=False)
         messagebox.showinfo("Thành công", f"Đã export:\n{filename}")
 
-# ==================== TÍNH TOÁN (ĐÃ CẢI TIẾN) ====================
+# ==================== TÍNH TOÁN ====================
+# (giữ nguyên toàn bộ phần tính toán, find_best_group, clear_all_data, import..., export... như code gốc)
+
 def calculate():
     global last_profit
     output = ""
@@ -676,7 +761,7 @@ def calculate():
         try:
             low, high = map(int, re.findall(r'\d+', entry_range.get().strip()))
             target = int(entry_num_groups.get().strip() or 0)
-            if target == 0:                  # ← NHẬP 0 = TỐI ĐA
+            if target == 0:
                 target = 9999
         except:
             messagebox.showerror("Lỗi", "Vui lòng nhập đúng khoảng nhóm!")
@@ -711,17 +796,8 @@ def calculate():
             output += "══════════════════════════════════════════════════════════════════════════════\n\n"
 
         if remaining:
-            remaining_sorted = sorted(remaining, reverse=True)   # ← SẮP XẾP GIẢM DẦN
+            remaining_sorted = sorted(remaining, reverse=True)
             output += f"🔸 SỐ CÒN LẠI ({len(remaining)} số): {remaining_sorted}\n"
-
-            # Gợi ý còn thiếu để tạo nhóm mới
-            if remaining_sorted:
-                max_possible = sum(remaining_sorted)
-                if max_possible >= low:
-                    output += f"🔹 Gợi ý: Có thể tạo thêm 1 nhóm (tổng còn lại đủ {low} ~ {high})\n"
-                else:
-                    deficit = low - max_possible
-                    output += f"🔹 Gợi ý: Cần thêm ít nhất {deficit} số nữa để tạo nhóm mới (tổng còn thiếu {deficit})\n"
 
     elif current_tab == "Tính % Sale":
         text_sale = entry_sale.get().strip()
@@ -961,14 +1037,14 @@ if __name__ == "__main__":
     text_output.pack(padx=20, pady=8, fill="both", expand=True)
 
     # ==================== KHỞI ĐỘNG ====================
-valid, remaining_days, status_text = load_license_info()
-update_title(valid, status_text)
+    valid, remaining_days, status_text = load_license_info()
+    update_title(valid, status_text)
 
-if valid:
-        root.deiconify()           # Hiện cửa sổ chính
+    if valid:
+        root.deiconify()
         check_overdue_reminder()
         root.mainloop()
-else:
+    else:
         if LICENSE_FILE.exists() and remaining_days <= 0:
             messagebox.showerror("❌ HẾT HẠN", "License key của bạn đã hết hạn!\nVui lòng nhập key mới.")
         show_license_dialog()
